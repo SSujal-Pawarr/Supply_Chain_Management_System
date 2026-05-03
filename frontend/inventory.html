@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supply Chain | Inventory</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/index.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+  <canvas id="bg-canvas"></canvas>
+  <div id="bg-overlay"></div>
+  <div id="scroll-spacer"></div>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <div class="logo-icon">SC</div>
+        <div class="logo-text">SupplyChain</div>
+      </div>
+      <div class="nav-section-label">Overview</div>
+      <nav><ul class="nav-links">
+        <li><a href="dashboard.html" class="nav-item"><i class='bx bxs-dashboard'></i> Dashboard</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Entities</div>
+      <nav><ul class="nav-links">
+        <li><a href="customers.html" class="nav-item"><i class='bx bx-user-circle'></i> Customers</a></li>
+        <li><a href="suppliers.html" class="nav-item"><i class='bx bx-store-alt'></i> Suppliers</a></li>
+        <li><a href="products.html" class="nav-item"><i class='bx bx-box'></i> Products</a></li>
+        <li><a href="warehouses.html" class="nav-item"><i class='bx bx-buildings'></i> Warehouses</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Operations</div>
+      <nav><ul class="nav-links">
+        <li><a href="orders.html" class="nav-item"><i class='bx bx-cart'></i> Orders</a></li>
+        <li><a href="inventory.html" class="nav-item active"><i class='bx bx-layer'></i> Inventory</a></li>
+      </ul></nav>
+      <div class="sidebar-footer">
+        <button class="btn-secondary" style="width:100%;font-size:11px;padding:7px;" onclick="window.supplyChainAPI.logout()">
+          <i class='bx bx-log-out'></i> Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header animate-fade-in">
+        <div>
+          <h1 class="page-title">Inventory</h1>
+          <p class="page-subtitle">Stock levels across all warehouses and products</p>
+        </div>
+        <button class="btn-primary" onclick="openAddModal()"><i class='bx bx-plus'></i> Add Stock Record</button>
+      </header>
+
+      <!-- Low stock alert bar -->
+      <div id="low-stock-bar" style="display:none" class="glass-panel animate-fade-in delay-1" style="margin-bottom:20px;">
+        <div style="padding:14px 20px;display:flex;align-items:center;gap:10px;border-left:3px solid var(--accent-danger);border-radius:14px;">
+          <i class='bx bx-error-circle' style="color:var(--accent-danger);font-size:20px;"></i>
+          <span style="font-size:13px;"><span class="text-danger" style="font-weight:700" id="low-stock-count">0</span> items below 10 units — review stock levels</span>
+        </div>
+      </div>
+
+      <div class="content-section animate-fade-in delay-2" style="margin-top:16px;">
+        <div class="glass-panel">
+          <div class="filter-bar">
+            <input class="search-input" placeholder="🔍  Search by product or warehouse..." oninput="filterRows(this.value)"/>
+            <select class="search-input" style="min-width:160px" onchange="filterByWarehouse(this.value)" id="wh-filter">
+              <option value="">All Warehouses</option>
+            </select>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead><tr>
+                <th>Product ID</th><th>Product</th><th>Warehouse</th><th>Location</th><th>Quantity</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="inventory-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Stock Modal -->
+  <dialog id="add-modal">
+    <div class="modal-title" id="modal-title">Add Stock Record</div>
+    <form onsubmit="submitForm(event)">
+      <input type="hidden" id="edit-product-id"/>
+      <input type="hidden" id="edit-warehouse-id"/>
+      <div class="form-group" id="product-group">
+        <label>Product *</label>
+        <select name="product_id" id="product-select" required>
+          <option value="">Loading products...</option>
+        </select>
+      </div>
+      <div class="form-group" id="warehouse-group">
+        <label>Warehouse *</label>
+        <select name="warehouse_id" id="warehouse-select" required>
+          <option value="">Loading warehouses...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Quantity *</label>
+        <input type="number" name="quantity" min="0" required placeholder="0"/>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/app.js"></script>
+  <script src="js/scroll-animation.js"></script>
+  <script>
+    let allInventory = [];
+    let productMap = {}, warehouseMap = {};
+    let activeWarehouse = '';
+
+    async function loadDropdowns() {
+      const [products, warehouses] = await Promise.all([
+        window.supplyChainAPI.getProducts(),
+        window.supplyChainAPI.getWarehouses()
+      ]);
+      const pSel = document.getElementById('product-select');
+      const wSel = document.getElementById('warehouse-select');
+      const wFilter = document.getElementById('wh-filter');
+
+      if (products) {
+        products.forEach(p => productMap[p.product_id] = p.name);
+        pSel.innerHTML = products.map(p => `<option value="${p.product_id}">${p.name}</option>`).join('');
+      }
+      if (warehouses) {
+        warehouses.forEach(w => warehouseMap[w.warehouse_id] = w.location);
+        wSel.innerHTML = warehouses.map(w => `<option value="${w.warehouse_id}">${w.location}</option>`).join('');
+        wFilter.innerHTML = '<option value="">All Warehouses</option>' +
+          warehouses.map(w => `<option value="${w.warehouse_id}">${w.location}</option>`).join('');
+      }
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').textContent = 'Add Stock Record';
+      document.getElementById('edit-product-id').value = '';
+      document.getElementById('edit-warehouse-id').value = '';
+      document.getElementById('product-group').style.display = '';
+      document.getElementById('warehouse-group').style.display = '';
+      document.querySelector('#add-modal form').reset();
+      document.getElementById('add-modal').showModal();
+    }
+
+    function openEditQty(item) {
+      document.getElementById('modal-title').textContent = 'Update Quantity';
+      document.getElementById('edit-product-id').value = item.product_id;
+      document.getElementById('edit-warehouse-id').value = item.warehouse_id;
+      // Hide selects when editing — keys are fixed
+      document.getElementById('product-group').style.display = 'none';
+      document.getElementById('warehouse-group').style.display = 'none';
+      document.querySelector('[name="quantity"]').value = item.quantity;
+      document.getElementById('add-modal').showModal();
+    }
+    function closeModal() { document.getElementById('add-modal').close(); }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const pid = document.getElementById('edit-product-id').value;
+      const wid = document.getElementById('edit-warehouse-id').value;
+      const qty = parseInt(fd.get('quantity'));
+
+      let result;
+      if (pid && wid) {
+        // Update existing
+        result = await window.supplyChainAPI.updateInventory(pid, wid, { quantity: qty });
+      } else {
+        // Create new
+        result = await window.supplyChainAPI.createInventory({
+          product_id: parseInt(fd.get('product_id')),
+          warehouse_id: parseInt(fd.get('warehouse_id')),
+          quantity: qty
+        });
+      }
+      if (result !== null) {
+        closeModal();
+        toast(pid ? 'Quantity updated!' : 'Stock record added!', 'success');
+        loadInventory();
+      } else {
+        toast('Operation failed.', 'error');
+      }
+    }
+
+    function filterRows(q) {
+      const lq = q.toLowerCase();
+      document.querySelectorAll('#inventory-table-body tr[data-row]').forEach(row => {
+        const searchMatch = row.dataset.search.includes(lq);
+        const whMatch = !activeWarehouse || row.dataset.wh === activeWarehouse;
+        row.style.display = (searchMatch && whMatch) ? '' : 'none';
+      });
+    }
+
+    function filterByWarehouse(wid) {
+      activeWarehouse = wid;
+      filterRows(document.querySelector('.filter-bar .search-input').value);
+    }
+
+    async function loadInventory() {
+      const tbody = document.getElementById('inventory-table-body');
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-secondary);">Loading...</td></tr>`;
+      const data = await window.supplyChainAPI.getInventory();
+      allInventory = data || [];
+
+      const lowStock = allInventory.filter(i => i.quantity < 10);
+      const bar = document.getElementById('low-stock-bar');
+      if (lowStock.length) {
+        bar.style.display = '';
+        document.getElementById('low-stock-count').textContent = lowStock.length;
+      } else {
+        bar.style.display = 'none';
+      }
+
+      if (!allInventory.length) {
+        tbody.innerHTML = window.supplyChainAPI.getEmptyStateHTML(6, 'No inventory records found.');
+        return;
+      }
+      tbody.innerHTML = allInventory.map((item, i) => {
+        const qtyColor = item.quantity < 10 ? 'var(--accent-danger)' : item.quantity < 50 ? 'var(--accent-warning)' : 'var(--accent-tertiary)';
+        const prodName = productMap[item.product_id] || 'Product #'+item.product_id;
+        const whName   = warehouseMap[item.warehouse_id] || 'Warehouse #'+item.warehouse_id;
+        return `<tr data-row="${item.product_id}_${item.warehouse_id}" data-wh="${item.warehouse_id}" data-search="${[prodName, whName].join(' ').toLowerCase()}" class="animate-fade-in delay-${(i%4)+1}">
+          <td class="text-muted">#${item.product_id}</td>
+          <td style="font-weight:500">${prodName}</td>
+          <td class="text-muted">#${item.warehouse_id}</td>
+          <td>${whName}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:60px;height:5px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+                <div style="width:${Math.min(100,(item.quantity/200)*100)}%;height:100%;background:${qtyColor};transition:width 0.3s;"></div>
+              </div>
+              <span style="color:${qtyColor};font-weight:600;">${item.quantity}</span>
+              ${item.quantity < 10 ? '<span class="badge danger">Low</span>' : ''}
+            </div>
+          </td>
+          <td>
+            <button class="btn-icon" title="Update Qty" onclick='openEditQty(${JSON.stringify(item).replace(/'/g,"&#39;")})'>
+              <i class='bx bx-edit'></i> Edit Qty
+            </button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function toast(msg, type='success') {
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.innerHTML = `<i class='bx ${type==='success'?'bx-check-circle':'bx-error-circle'}'></i> ${msg}`;
+      document.getElementById('toast-container').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDropdowns();
+      await loadInventory();
+    });
+  </script>
+</body>
+</html>

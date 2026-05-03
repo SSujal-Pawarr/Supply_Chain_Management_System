@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supply Chain | Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f1117;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      height: 100vh; width: 100vw;
+    }
+    #hero-canvas {
+      position: fixed; top: 0; left: 0;
+      width: 100vw; height: 100vh; z-index: 0;
+      filter: brightness(0.42) contrast(1.15) saturate(0.85);
+    }
+    .bottom-fade {
+      position: fixed; bottom: 0; left: 0;
+      width: 100%; height: 45%;
+      background: linear-gradient(to top, #0f1117 0%, transparent 100%);
+      z-index: 1; pointer-events: none;
+    }
+    .vignette {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+      z-index: 1; pointer-events: none;
+    }
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 28px 48px;
+    }
+    .nav-logo { font-size: 22px; font-weight: 900; letter-spacing: -1px; color: #4f7ef7; }
+    .nav-links { display: flex; gap: 12px; }
+    .nav-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 10px 24px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      text-decoration: none; letter-spacing: 0.3px; transition: all 0.2s ease;
+      backdrop-filter: blur(8px); background: rgba(79,126,247,0.12);
+      border: 1px solid rgba(79,126,247,0.35); color: #fff;
+    }
+    .nav-btn:hover { background: rgba(79,126,247,0.28); border-color: rgba(79,126,247,0.6); }
+    .nav-btn.primary { background: #4f7ef7; border-color: #4f7ef7; }
+    .nav-btn.primary:hover { background: #3d6de0; border-color: #3d6de0; }
+
+    #hero-text {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -52%); z-index: 10;
+      text-align: center; width: 90%; max-width: 960px; pointer-events: none;
+    }
+    .hero-eyebrow {
+      font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+      color: #4f7ef7; font-weight: 600; margin-bottom: 22px;
+      opacity: 0; animation: fadeUp 0.6s ease 0.2s forwards;
+    }
+    .hero-headline {
+      font-size: clamp(56px, 9vw, 104px); font-weight: 900;
+      line-height: 0.92; letter-spacing: -4px; color: #fff;
+      text-transform: uppercase; min-height: 2em;
+    }
+    .hero-headline .accent {
+      background: linear-gradient(135deg, #4f7ef7 0%, #a78bfa 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero-line { display: block; min-height: 1em; }
+    .hero-sub {
+      font-size: clamp(15px, 1.8vw, 20px); font-weight: 300;
+      color: rgba(255,255,255,0.5); margin-top: 24px;
+      letter-spacing: 0.2px; line-height: 1.7; min-height: 2em;
+    }
+    .tw-cursor {
+      display: inline-block; width: 3px; height: 0.82em;
+      background: #4f7ef7; margin-left: 3px; vertical-align: middle;
+      animation: blink 0.65s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    #cta-bar {
+      position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 20px;
+      opacity: 0; animation: fadeUp 0.8s ease 3.5s forwards;
+    }
+    .cta-main {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 18px 52px; background: #4f7ef7; color: #fff;
+      border-radius: 9999px; font-size: 14px; font-weight: 800;
+      letter-spacing: 1.5px; text-transform: uppercase; text-decoration: none;
+      transition: all 0.25s ease; box-shadow: 0 0 48px rgba(79,126,247,0.4);
+    }
+    .cta-main:hover { background: #3d6de0; transform: translateY(-2px); box-shadow: 0 0 70px rgba(79,126,247,0.55); }
+    .scroll-hint {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      color: rgba(255,255,255,0.25); font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+    }
+    .scroll-line {
+      width: 1px; height: 36px;
+      background: linear-gradient(to bottom, rgba(79,126,247,0.7), transparent);
+      animation: scrollPulse 2s ease-in-out infinite;
+    }
+    @keyframes scrollPulse {
+      0%   { transform: scaleY(0) translateY(0); transform-origin: top; opacity: 0; }
+      50%  { transform: scaleY(1); opacity: 1; }
+      100% { transform: scaleY(1) translateY(100%); opacity: 0; }
+    }
+
+    #stats-bar {
+      position: fixed; bottom: 48px; left: 0; right: 0; z-index: 10;
+      display: flex; justify-content: center; gap: 56px;
+      opacity: 0; animation: fadeUp 0.8s ease 3.9s forwards; pointer-events: none;
+    }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 26px; font-weight: 900; color: #fff; letter-spacing: -1px; }
+    .stat-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-top: 3px; }
+    .stat-divider { width: 1px; height: 38px; background: rgba(255,255,255,0.07); align-self: center; }
+
+    #frame-progress {
+      position: fixed; top: 0; left: 0; height: 2px;
+      background: linear-gradient(90deg, #4f7ef7, #a78bfa);
+      z-index: 20; width: 0%; transition: width 0.08s linear;
+    }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+  <canvas id="hero-canvas"></canvas>
+  <div class="vignette"></div>
+  <div class="bottom-fade"></div>
+  <div id="frame-progress"></div>
+
+  <nav>
+    <div class="nav-logo">⬡ CHAIN</div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-btn primary">Dashboard</a>
+      <a href="login.html" class="nav-btn">Sign In</a>
+    </div>
+  </nav>
+
+  <div id="hero-text">
+    <div class="hero-eyebrow">Supply Chain Management</div>
+    <div class="hero-headline">
+      <span class="hero-line" id="line1"></span>
+      <span class="hero-line" id="line2"></span>
+    </div>
+    <div class="hero-sub" id="hero-sub"></div>
+  </div>
+
+  
+
+  <div id="stats-bar">
+    <div class="stat-item"><div class="stat-num">200+</div><div class="stat-label">Products</div></div>
+    <div class="stat-divider"></div>
+    <div class="stat-item"><div class="stat-num">Real-time</div><div class="stat-label">Tracking</div></div>
+    <div class="stat-divider"></div>
+    <div class="stat-item"><div class="stat-num">6</div><div class="stat-label">Modules</div></div>
+  </div>
+
+  <script>
+  (function () {
+    // ── FRAME AUTO-PLAYBACK ────────────────────────────────────
+    const TOTAL = 200, FOLDER = 'images/', FPS = 24;
+    const canvas = document.getElementById('hero-canvas');
+    const ctx = canvas.getContext('2d');
+    const prog = document.getElementById('frame-progress');
+
+    function resize() {
+      const pr = window.devicePixelRatio || 1;
+      canvas.width  = window.innerWidth  * pr;
+      canvas.height = window.innerHeight * pr;
+      canvas.style.width  = window.innerWidth  + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.scale(pr, pr);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const frames = new Array(TOTAL).fill(null);
+    let lastImg = null, cur = 0;
+
+    function path(i){ return `${FOLDER}ezgif-frame-${String(i+1).padStart(3,'0')}.jpg`; }
+
+    function load(i, cb){
+      if(frames[i]){ if(cb) cb(frames[i]); return; }
+      const img = new Image();
+      img.onload = ()=>{ frames[i]=img; if(cb) cb(img); };
+      img.onerror = ()=>{ frames[i]=false; };
+      img.src = path(i);
+    }
+
+    function draw(img){
+      if(!img) return;
+      const cw=window.innerWidth, ch=window.innerHeight;
+      const iw=img.naturalWidth||cw, ih=img.naturalHeight||ch;
+      const s=Math.max(cw/iw, ch/ih);
+      const dw=iw*s, dh=ih*s;
+      ctx.clearRect(0,0,cw,ch);
+      ctx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);
+    }
+
+    // Preload: first 40 eagerly
+    for(let i=0;i<40;i++) load(i);
+    setTimeout(()=>{ for(let i=40;i<TOTAL;i++) load(i); }, 350);
+
+    // Auto-play loop
+    load(0, (img)=>{
+      draw(img); lastImg = img;
+      setInterval(()=>{
+        const f = frames[cur];
+        if(f){ draw(f); lastImg=f; }
+        else if(lastImg) draw(lastImg);
+        if(prog) prog.style.width = ((cur/(TOTAL-1))*100)+'%';
+        cur = (cur+1) % TOTAL;
+      }, 1000/FPS);
+    });
+
+    // ── TYPEWRITER ─────────────────────────────────────────────
+    const l1 = document.getElementById('line1');
+    const l2 = document.getElementById('line2');
+    const sb = document.getElementById('hero-sub');
+
+    function type(el, text, delay, speed, accentAll, done){
+      setTimeout(()=>{
+        let i=0;
+        const cur = document.createElement('span');
+        cur.className = 'tw-cursor';
+        el.appendChild(cur);
+        const iv = setInterval(()=>{
+          if(i<text.length){
+            const sp = document.createElement('span');
+            if(accentAll) sp.className='accent';
+            sp.textContent = text[i++];
+            el.insertBefore(sp, cur);
+          } else {
+            clearInterval(iv);
+            cur.remove();
+            if(done) done();
+          }
+        }, speed);
+      }, delay);
+    }
+
+    // Line 1: SUPPLY.  (no accent)
+    type(l1, 'SUPPLY.', 500, 75, false, ()=>{
+      // Line 2: REIMAGINED.  (accent gradient)
+      type(l2, 'REIMAGINED.', 120, 65, true, ()=>{
+        // Subtitle
+        setTimeout(()=>{
+          sb.style.opacity='1';
+          const sub='A panoramic view of your operations — track every asset, warehouse to customer, in real time.';
+          let j=0;
+          const c2=document.createElement('span');
+          c2.className='tw-cursor';
+          sb.appendChild(c2);
+          const iv2=setInterval(()=>{
+            if(j<sub.length){
+              const sp=document.createElement('span');
+              sp.textContent=sub[j++];
+              sb.insertBefore(sp,c2);
+            } else { clearInterval(iv2); c2.remove(); }
+          }, 20);
+        }, 200);
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

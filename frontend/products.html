@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supply Chain | Products</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/index.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+  <canvas id="bg-canvas"></canvas>
+  <div id="bg-overlay"></div>
+  <div id="scroll-spacer"></div>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <div class="logo-icon">SC</div>
+        <div class="logo-text">SupplyChain</div>
+      </div>
+      <div class="nav-section-label">Overview</div>
+      <nav><ul class="nav-links">
+        <li><a href="dashboard.html" class="nav-item"><i class='bx bxs-dashboard'></i> Dashboard</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Entities</div>
+      <nav><ul class="nav-links">
+        <li><a href="customers.html" class="nav-item"><i class='bx bx-user-circle'></i> Customers</a></li>
+        <li><a href="suppliers.html" class="nav-item"><i class='bx bx-store-alt'></i> Suppliers</a></li>
+        <li><a href="products.html" class="nav-item active"><i class='bx bx-box'></i> Products</a></li>
+        <li><a href="warehouses.html" class="nav-item"><i class='bx bx-buildings'></i> Warehouses</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Operations</div>
+      <nav><ul class="nav-links">
+        <li><a href="orders.html" class="nav-item"><i class='bx bx-cart'></i> Orders</a></li>
+        <li><a href="inventory.html" class="nav-item"><i class='bx bx-layer'></i> Inventory</a></li>
+      </ul></nav>
+      <div class="sidebar-footer">
+        <button class="btn-secondary" style="width:100%;font-size:11px;padding:7px;" onclick="window.supplyChainAPI.logout()">
+          <i class='bx bx-log-out'></i> Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header animate-fade-in">
+        <div>
+          <h1 class="page-title">Products</h1>
+          <p class="page-subtitle">Manage product catalog, pricing and supplier links</p>
+        </div>
+        <button class="btn-primary" onclick="openAddModal()"><i class='bx bx-plus'></i> Add Product</button>
+      </header>
+
+      <div class="content-section animate-fade-in delay-1">
+        <div class="glass-panel">
+          <div class="filter-bar">
+            <input class="search-input" placeholder="🔍  Search by name or supplier..." oninput="filterRows(this.value)"/>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead><tr>
+                <th>ID</th><th>Name</th><th>Price</th><th>Supplier</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="products-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add / Edit Modal -->
+  <dialog id="add-modal">
+    <div class="modal-title" id="modal-title">Add Product</div>
+    <form onsubmit="submitForm(event)">
+      <input type="hidden" id="edit-id"/>
+      <div class="form-group">
+        <label>Product Name *</label>
+        <input type="text" name="name" required placeholder="Industrial Conveyor Belt"/>
+      </div>
+      <div class="form-group">
+        <label>Price ($) *</label>
+        <input type="number" name="price" step="0.01" min="0" required placeholder="0.00"/>
+      </div>
+      <div class="form-group">
+        <label>Supplier *</label>
+        <select name="supplier_id" id="supplier-select" required>
+          <option value="">Loading suppliers...</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Product</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/app.js"></script>
+  <script src="js/scroll-animation.js"></script>
+  <script>
+    let allProducts = [];
+    let supplierMap = {};
+
+    async function loadSupplierDropdown() {
+      const suppliers = await window.supplyChainAPI.getSuppliers();
+      const sel = document.getElementById('supplier-select');
+      if (suppliers && suppliers.length) {
+        suppliers.forEach(s => supplierMap[s.supplier_id] = s.name);
+        sel.innerHTML = suppliers.map(s => `<option value="${s.supplier_id}">${s.name}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">No suppliers available</option>';
+      }
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').textContent = 'Add Product';
+      document.getElementById('edit-id').value = '';
+      document.querySelector('#add-modal form').reset();
+      document.getElementById('add-modal').showModal();
+    }
+    function closeModal() { document.getElementById('add-modal').close(); }
+
+    function openEditModal(p) {
+      document.getElementById('modal-title').textContent = 'Edit Product';
+      document.getElementById('edit-id').value = p.product_id;
+      document.querySelector('[name="name"]').value = p.name || '';
+      document.querySelector('[name="price"]').value = p.price || '';
+      document.querySelector('[name="supplier_id"]').value = p.supplier_id || '';
+      document.getElementById('add-modal').showModal();
+    }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = {
+        name: fd.get('name'),
+        price: parseFloat(fd.get('price')),
+        supplier_id: parseInt(fd.get('supplier_id'))
+      };
+      const editId = document.getElementById('edit-id').value;
+      const result = editId
+        ? await window.supplyChainAPI.updateProduct(editId, data)
+        : await window.supplyChainAPI.createProduct(data);
+
+      if (result) {
+        closeModal();
+        toast(editId ? 'Product updated!' : 'Product added!', 'success');
+        loadProducts();
+      } else {
+        toast('Operation failed.', 'error');
+      }
+    }
+
+    window.executeDeleteProduct = async function(id) {
+      if (!confirm('Delete this product? Linked inventory records may also be affected.')) return;
+      const ok = await window.supplyChainAPI.deleteProduct(id);
+      if (ok) { toast('Product deleted.', 'success'); loadProducts(); }
+      else toast('Delete failed.', 'error');
+    };
+
+    function filterRows(q) {
+      const lq = q.toLowerCase();
+      document.querySelectorAll('#products-table-body tr[data-row]').forEach(row => {
+        row.style.display = row.dataset.search.includes(lq) ? '' : 'none';
+      });
+    }
+
+    async function loadProducts() {
+      const tbody = document.getElementById('products-table-body');
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-secondary);">Loading...</td></tr>`;
+      const data = await window.supplyChainAPI.getProducts();
+      allProducts = data || [];
+
+      if (!allProducts.length) {
+        tbody.innerHTML = window.supplyChainAPI.getEmptyStateHTML(5, 'No products found.');
+        return;
+      }
+      tbody.innerHTML = allProducts.map((p, i) => `
+        <tr data-row="${p.product_id}" data-search="${[p.name, supplierMap[p.supplier_id]||''].join(' ').toLowerCase()}" class="animate-fade-in delay-${(i%4)+1}">
+          <td class="text-muted">${p.product_id}</td>
+          <td style="font-weight:500">${p.name}</td>
+          <td class="text-success">${window.supplyChainAPI.formatCurrency(p.price)}</td>
+          <td>
+            <a href="suppliers.html" style="color:var(--accent-secondary);text-decoration:none;">
+              ${supplierMap[p.supplier_id] || 'Supplier #'+p.supplier_id}
+            </a>
+          </td>
+          <td><div class="actions-cell">
+            <button class="btn-icon" title="Edit" onclick='openEditModal(${JSON.stringify(p).replace(/'/g,"&#39;")})'><i class='bx bx-edit'></i></button>
+            <button class="btn-danger" onclick="executeDeleteProduct(${p.product_id})"><i class='bx bx-trash'></i></button>
+          </div></td>
+        </tr>`).join('');
+    }
+
+    function toast(msg, type='success') {
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.innerHTML = `<i class='bx ${type==='success'?'bx-check-circle':'bx-error-circle'}'></i> ${msg}`;
+      document.getElementById('toast-container').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadSupplierDropdown();
+      await loadProducts();
+    });
+  </script>
+</body>
+</html>

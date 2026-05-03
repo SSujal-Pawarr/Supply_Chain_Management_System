@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supply Chain | Orders</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/index.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+</head>
+<body>
+  <canvas id="bg-canvas"></canvas>
+  <div id="bg-overlay"></div>
+  <div id="scroll-spacer"></div>
+
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="logo-container">
+        <div class="logo-icon">SC</div>
+        <div class="logo-text">SupplyChain</div>
+      </div>
+      <div class="nav-section-label">Overview</div>
+      <nav><ul class="nav-links">
+        <li><a href="dashboard.html" class="nav-item"><i class='bx bxs-dashboard'></i> Dashboard</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Entities</div>
+      <nav><ul class="nav-links">
+        <li><a href="customers.html" class="nav-item"><i class='bx bx-user-circle'></i> Customers</a></li>
+        <li><a href="suppliers.html" class="nav-item"><i class='bx bx-store-alt'></i> Suppliers</a></li>
+        <li><a href="products.html" class="nav-item"><i class='bx bx-box'></i> Products</a></li>
+        <li><a href="warehouses.html" class="nav-item"><i class='bx bx-buildings'></i> Warehouses</a></li>
+      </ul></nav>
+      <div class="nav-section-label">Operations</div>
+      <nav><ul class="nav-links">
+        <li><a href="orders.html" class="nav-item active"><i class='bx bx-cart'></i> Orders</a></li>
+        <li><a href="inventory.html" class="nav-item"><i class='bx bx-layer'></i> Inventory</a></li>
+      </ul></nav>
+      <div class="sidebar-footer">
+        <button class="btn-secondary" style="width:100%;font-size:11px;padding:7px;" onclick="window.supplyChainAPI.logout()">
+          <i class='bx bx-log-out'></i> Sign Out
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header animate-fade-in">
+        <div>
+          <h1 class="page-title">Orders & Clients</h1>
+          <p class="page-subtitle">Track incoming demands and fulfilment status</p>
+        </div>
+        <button class="btn-primary" onclick="openAddModal()"><i class='bx bx-plus'></i> New Order</button>
+      </header>
+
+      <div class="content-section animate-fade-in delay-1">
+        <div class="glass-panel">
+          <div class="filter-bar">
+            <input class="search-input" placeholder="🔍  Search by customer or order ID..." oninput="filterRows(this.value)"/>
+            <select class="search-input" style="min-width:140px" onchange="filterByStatus(this.value)">
+              <option value="">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="SHIPPED">Shipped</option>
+              <option value="DELIVERED">Delivered</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead><tr>
+                <th>Order ID</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="orders-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add / Edit Modal -->
+  <dialog id="add-modal">
+    <div class="modal-title" id="modal-title">New Order</div>
+    <form onsubmit="submitForm(event)">
+      <input type="hidden" id="edit-id"/>
+      <div class="form-group">
+        <label>Customer *</label>
+        <select name="customer_id" id="customer-select" required>
+          <option value="">Loading customers...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Total Amount ($) *</label>
+        <input type="number" name="total_amount" step="0.01" min="0" required placeholder="0.00"/>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          <option value="PENDING">Pending</option>
+          <option value="SHIPPED">Shipped</option>
+          <option value="DELIVERED">Delivered</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Order</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/app.js"></script>
+  <script src="js/scroll-animation.js"></script>
+  <script>
+    let allOrders = [];
+    let customerMap = {};
+    let activeStatus = '';
+
+    async function loadCustomerDropdown() {
+      const customers = await window.supplyChainAPI.getCustomers();
+      const sel = document.getElementById('customer-select');
+      if (customers && customers.length) {
+        customers.forEach(c => customerMap[c.customer_id] = c.name);
+        sel.innerHTML = customers.map(c => `<option value="${c.customer_id}">${c.name}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">No customers available</option>';
+      }
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').textContent = 'New Order';
+      document.getElementById('edit-id').value = '';
+      document.querySelector('#add-modal form').reset();
+      document.getElementById('add-modal').showModal();
+    }
+    function closeModal() { document.getElementById('add-modal').close(); }
+
+    function openEditModal(o) {
+      document.getElementById('modal-title').textContent = 'Edit Order';
+      document.getElementById('edit-id').value = o.order_id;
+      document.querySelector('[name="customer_id"]').value = o.customer_id || '';
+      document.querySelector('[name="total_amount"]').value = o.total_amount || '';
+      document.querySelector('[name="status"]').value = o.status || 'PENDING';
+      document.getElementById('add-modal').showModal();
+    }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = {
+        customer_id: parseInt(fd.get('customer_id')),
+        total_amount: parseFloat(fd.get('total_amount')),
+        status: fd.get('status')
+      };
+      const editId = document.getElementById('edit-id').value;
+      const result = editId
+        ? await window.supplyChainAPI.updateOrder(editId, data)
+        : await window.supplyChainAPI.createOrder(data);
+
+      if (result) {
+        closeModal();
+        toast(editId ? 'Order updated!' : 'Order created!', 'success');
+        loadOrders();
+      } else {
+        toast('Operation failed.', 'error');
+      }
+    }
+
+    window.executeDeleteOrder = async function(id) {
+      if (!confirm('Delete this order permanently?')) return;
+      const ok = await window.supplyChainAPI.deleteOrder(id);
+      if (ok) { toast('Order deleted.', 'success'); loadOrders(); }
+      else toast('Delete failed.', 'error');
+    };
+
+    function filterRows(q) {
+      const lq = q.toLowerCase();
+      document.querySelectorAll('#orders-table-body tr[data-row]').forEach(row => {
+        const searchMatch = row.dataset.search.includes(lq);
+        const statusMatch = !activeStatus || row.dataset.status === activeStatus;
+        row.style.display = (searchMatch && statusMatch) ? '' : 'none';
+      });
+    }
+
+    function filterByStatus(status) {
+      activeStatus = status;
+      filterRows(document.querySelector('.filter-bar .search-input').value);
+    }
+
+    async function loadOrders() {
+      const tbody = document.getElementById('orders-table-body');
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-secondary);">Loading...</td></tr>`;
+      const data = await window.supplyChainAPI.getOrders();
+      allOrders = data || [];
+
+      if (!allOrders.length) {
+        tbody.innerHTML = window.supplyChainAPI.getEmptyStateHTML(6, 'No orders found.');
+        return;
+      }
+      tbody.innerHTML = allOrders.map((o, i) => `
+        <tr data-row="${o.order_id}" data-status="${o.status}" data-search="${['#'+o.order_id, o.customer_name||customerMap[o.customer_id]||''].join(' ').toLowerCase()}" class="animate-fade-in delay-${(i%4)+1}">
+          <td><span class="text-accent" style="font-weight:600">#${o.order_id}</span></td>
+          <td><i class='bx bx-user' style="color:var(--text-secondary);margin-right:4px;"></i>${o.customer_name || customerMap[o.customer_id] || 'Customer #'+o.customer_id}</td>
+          <td class="text-muted">${window.supplyChainAPI.formatDate(o.order_date)}</td>
+          <td class="text-success">${window.supplyChainAPI.formatCurrency(o.total_amount)}</td>
+          <td><span class="badge ${window.supplyChainAPI.getStatusBadgeClass(o.status)}">${o.status}</span></td>
+          <td><div class="actions-cell">
+            <button class="btn-icon" title="Edit" onclick='openEditModal(${JSON.stringify(o).replace(/'/g,"&#39;")})'><i class='bx bx-edit'></i></button>
+            <button class="btn-danger" onclick="executeDeleteOrder(${o.order_id})"><i class='bx bx-trash'></i></button>
+          </div></td>
+        </tr>`).join('');
+    }
+
+    function toast(msg, type='success') {
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.innerHTML = `<i class='bx ${type==='success'?'bx-check-circle':'bx-error-circle'}'></i> ${msg}`;
+      document.getElementById('toast-container').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadCustomerDropdown();
+      await loadOrders();
+    });
+  </script>
+</body>
+</html>
