@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model customers {
+  customer_id      Int      @id @default(autoincrement())
+  name             String   @db.VarChar(100)
+  phone            String?  @unique @db.VarChar(10)
+  shipping_address String   @db.VarChar(200)
+  orders           orders[]
+}
+
+model suppliers {
+  supplier_id   Int        @id @default(autoincrement())
+  name          String     @db.VarChar(100)
+  contact_email String?    @unique @db.VarChar(100)
+  phone         String?    @unique @db.VarChar(10)
+  city          String     @db.VarChar(50)
+  products      products[]
+}
+
+model products {
+  product_id  Int           @id @default(autoincrement())
+  name        String        @db.VarChar(100)
+  price       Decimal       @db.Decimal(10, 2)
+  supplier_id Int
+  supplier    suppliers     @relation(fields: [supplier_id], references: [supplier_id], onDelete: Cascade)
+  inventory   inventory[]
+  order_items order_items[]
+}
+
+model warehouses {
+  warehouse_id      Int         @id @default(autoincrement())
+  location          String      @db.VarChar(150)
+  capacity          Int?
+  warehouse_manager String?     @db.VarChar(100)
+  inventory         inventory[]
+}
+
+model orders {
+  order_id     Int           @id @default(autoincrement())
+  customer_id  Int
+  order_date   DateTime      @default(now())
+  total_amount Decimal       @db.Decimal(10, 2)
+  status       String        @default("PENDING") @db.VarChar(50)
+  customer     customers     @relation(fields: [customer_id], references: [customer_id], onDelete: Cascade)
+  order_items  order_items[]
+}
+
+model order_items {
+  order_id       Int
+  product_id     Int
+  quantity       Int
+  price_at_order Decimal  @db.Decimal(10, 2)
+  order          orders   @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
+  product        products @relation(fields: [product_id], references: [product_id])
+  @@id([order_id, product_id])
+}
+
+model inventory {
+  product_id   Int
+  warehouse_id Int
+  quantity     Int
+  product      products   @relation(fields: [product_id], references: [product_id], onDelete: Cascade)
+  warehouse    warehouses @relation(fields: [warehouse_id], references: [warehouse_id], onDelete: Cascade)
+  @@id([product_id, warehouse_id])
+}
