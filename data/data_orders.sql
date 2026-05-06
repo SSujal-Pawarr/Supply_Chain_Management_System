@@ -1,0 +1,12 @@
+INSERT INTO orders (customer_id, total_amount,status)
+VALUES
+(1, 35000.00, 'PENDING'),
+(2, 4500.00, 'COMPLETED'),
+(3, 25000.00, 'SHIPPED'),
+(4, 75000.00, 'PENDING'),
+(5, 42000.00, 'COMPLETED'),
+(6, 38000.00, 'SHIPPED'),
+(7, 29000.00, 'PENDING'),
+(8, 15000.00, 'COMPLETED'),
+(9, 18000.00, 'SHIPPED'),
+(10, 22000.00, 'PENDING');
